@@ -15,7 +15,7 @@ export default config({
          * Define your room handlers:
          */
         gameServer.define('my_room', MyRoom);
-        gameServer.define('world', WorldRoom); // 👈 Add this line
+        gameServer.define('world', WorldRoom);
 
     },
 
