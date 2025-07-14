@@ -42,6 +42,9 @@ importers:
       '@types/mocha':
         specifier: ^10.0.1
         version: 10.0.10
+      '@types/node':
+        specifier: ^24.0.13
+        version: 24.0.13
       jest:
         specifier: ^30.0.4
         version: 30.0.4(@types/node@24.0.13)

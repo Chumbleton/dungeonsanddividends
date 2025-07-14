@@ -3,11 +3,8 @@ import { Room, Client } from "colyseus";
 import { startTicker, Ticker } from "../tick";
 import { WorldState, PlayerSnapshot } from "./schema/WorldState";  // minimal version (globalTick only)
 import {
-  BASE_RATE,
-  WORKERS_PER_LEVEL,
-  FAIR_WAGE,
-  SPECIES_BONUS,
-  MORALE_K,
+  BASE_RATE, WORKERS_PER_LEVEL, FAIR_WAGE, SPECIES_BONUS, MORALE_K,
+  DEMAND_K, DEMAND_ELASTICITY, PRICE_ADJUST_RATE, MIN_PRICE, MAX_PRICE, COMMODITY, STEEL_RECIPE, BASE_PRICES
 } from "../constants/economy";
 
 export class WorldRoom extends Room<WorldState> {
@@ -19,8 +16,10 @@ export class WorldRoom extends Room<WorldState> {
     // ---- initialise state ----
     this.setState(new WorldState());
     console.log("[WorldRoom] state initialised");
+    this.state.marketPrices.set(COMMODITY.IRON,  BASE_PRICES[COMMODITY.IRON]);
+    this.state.marketPrices.set(COMMODITY.STEEL, BASE_PRICES[COMMODITY.STEEL]);
 
-    this.state.marketPrices.set("0", 10);
+
 
     // ---- start heartbeat (5 Hz) ----
     this.ticker = startTicker(this.runEconomyStep.bind(this));
@@ -31,7 +30,8 @@ export class WorldRoom extends Room<WorldState> {
 
     // starter cash, facility already pre-filled above
     snap.cash = 1000;
-    snap.inventory.set("0", 0);
+    snap.inventory.set(COMMODITY.IRON,  0);
+    snap.inventory.set(COMMODITY.STEEL, 0);
 
     this.state.playerSnapshots.set(client.sessionId, snap);
     console.log(`[Join] ${client.sessionId}`);
@@ -51,40 +51,108 @@ export class WorldRoom extends Room<WorldState> {
   private runEconomyStep(dt: number) {
     this.state.globalTick++;
 
-      const cur = this.state.marketPrices.get("0")!;        // key "0"
-     this.state.marketPrices.set("0", +(cur + 0.01).toFixed(2));
+    /* 1 ─ production + wages + morale */
+    for (const player of this.state.playerSnapshots.values()) {
+      this.processProduction(player);
+      this.processSteelCrafting(player);
+    }
 
-      this.state.playerSnapshots.forEach((snap) => {
-        /* ----- 3.1 morale ----- */
-        const wageRatio = snap.wage / FAIR_WAGE;
-        const morale =
-          1 / (1 + Math.exp(-MORALE_K * (wageRatio - 1)));   // logistic curve
+    /* 2 ─ market demand & price move (unchanged) */
+    this.clearMarketAndAdjustPrice();
 
-        /* ----- 3.2 capacity & output ----- */
-        const capacity = WORKERS_PER_LEVEL * snap.facilityLevel;
-        const effectiveWorkers = Math.min(snap.workers, capacity);
+    /* 3 ─ auto-sell inventory at clearing price */
+    for (const player of this.state.playerSnapshots.values()) {
+      this.processAutoSell(player);
+    }
 
-        const output =
-          BASE_RATE *
-          effectiveWorkers *
-          (1 + SPECIES_BONUS) *   // dwarf/elf later
-          morale;
-
-        /* ----- 3.3 update inventory ----- */
-        const currentQty = snap.inventory.get("0") ?? 0;
-        snap.inventory.set("0", +(currentQty + output).toFixed(2));
-
-        /* ----- 3.4 pay wages ----- */
-        snap.cash = +(snap.cash - snap.workers * snap.wage).toFixed(2);
-      });
-
-    // Log every 10 ticks so we can see progress.
-    if (this.state.globalTick % 10 === 0) {
+    /* 4 ─ optional log */
+    if (this.state.globalTick % 25 === 0) {
+      const p = this.state.playerSnapshots.values().next().value;
       console.log(
-        "[Tick]", this.state.globalTick,
-        "price", this.state.marketPrices.get("0"),
-        "players", this.state.playerSnapshots.size,
+        `[Tick ${this.state.globalTick}] ` +
+          `Cash=${p.cash.toFixed(2)} ` +
+          `Iron=${p.inventory.get(COMMODITY.IRON) ?? 0} ` +
+          `Steel=${p.inventory.get(COMMODITY.STEEL) ?? 0}`
       );
     }
   }
+
+  private computeMorale(player: PlayerSnapshot) {
+    const wageRatio = player.wage / FAIR_WAGE;
+    return 1 / (1 + Math.exp(-MORALE_K * (wageRatio - 1)));
+  }
+
+  private processProduction(player: PlayerSnapshot) {
+    const morale = this.computeMorale(player);
+
+    const capacity = WORKERS_PER_LEVEL * player.facilityLevel;
+    const effectiveWorkers = Math.min(player.workers, capacity);
+
+    const output =
+      BASE_RATE *
+      effectiveWorkers *
+      (1 + SPECIES_BONUS) *
+      morale;
+
+    const cur = player.inventory.get(COMMODITY.IRON) ?? 0;
+    player.inventory.set(COMMODITY.IRON, +(cur + output).toFixed(2));
+
+    // pay wages
+    player.cash = +(player.cash - player.workers * player.wage).toFixed(2);
+  }
+
+  private processSteelCrafting(player: PlayerSnapshot) {
+    const { input, output, ratio } = STEEL_RECIPE;
+    const inv = player.inventory;
+
+    const ironQty = inv.get(input) ?? 0;
+    if (ironQty >= ratio) {
+      inv.set(input, ironQty - ratio);
+      const curSteel = inv.get(output) ?? 0;
+      inv.set(output, curSteel + 1);
+    }
+  }
+
+  private processAutoSell(player: PlayerSnapshot) {
+    for (const [rid, qty] of player.inventory) {
+      if (qty <= 0) continue;
+      const price = this.state.marketPrices.get(rid) ?? BASE_PRICES[rid] ?? 1;
+      player.cash = +(player.cash + qty * price).toFixed(2);
+      player.inventory.set(rid, 0);
+    }
+  }
+
+    private clearMarketAndAdjustPrice() {
+    for (const resourceId of Object.values(COMMODITY)) {
+      // Current reference price (fallback to base table)
+      const price =
+        this.state.marketPrices.get(resourceId) ??
+        BASE_PRICES[resourceId] ??
+        1;
+
+      // Elastic demand for this tick
+      const demand = DEMAND_K * Math.pow(price, DEMAND_ELASTICITY);
+
+      // Aggregate total supply currently held by all players
+      let supply = 0;
+      this.state.playerSnapshots.forEach((snap) => {
+        supply += snap.inventory.get(resourceId) ?? 0;
+      });
+
+      // Decide direction
+      let newPrice: number;
+      if (supply < demand) {
+        // shortage → price up
+        newPrice = price * (1 + PRICE_ADJUST_RATE);
+      } else {
+        // surplus → price down
+        newPrice = price * (1 - PRICE_ADJUST_RATE);
+      }
+
+      // Clamp & store
+      newPrice = Math.max(MIN_PRICE, Math.min(MAX_PRICE, newPrice));
+      this.state.marketPrices.set(resourceId, +newPrice.toFixed(2));
+    }
+  }
+
 }
