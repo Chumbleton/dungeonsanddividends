@@ -6,7 +6,7 @@ import { WorldRoom } from "./rooms/WorldRoom";
 /**
  * Import your Room files
  */
-import { MyRoom } from "./rooms/MyRoom";
+
 
 export default config({
 
@@ -14,7 +14,6 @@ export default config({
         /**
          * Define your room handlers:
          */
-        gameServer.define('my_room', MyRoom);
         gameServer.define('world', WorldRoom);
 
     },
