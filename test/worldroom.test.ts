@@ -33,6 +33,9 @@ describe("WorldRoom integration", () => {
     expect(st1.globalTick).toBeGreaterThanOrEqual(4);
     expect(st1.playerSnapshots.has(room1.sessionId)).toBe(true);  // ← FIX
 
+    const mySnap = st1.playerSnapshots.get(room1.sessionId)!;
+    expect(mySnap.inventory.get("0")!).toBeGreaterThan(0);
+    
     /* ---- second client ---- */
     const cli2  = new Client(url);
     const room2 = await cli2.joinOrCreate("world");
