@@ -11,9 +11,6 @@ importers:
       '@colyseus/monitor':
         specifier: ^0.16.0
         version: 0.16.7
-      '@colyseus/playground':
-        specifier: ^0.16.0
-        version: 0.16.4(@colyseus/auth@0.16.6(@colyseus/core@0.16.19(@colyseus/schema@3.0.42))(express@4.21.2))(@colyseus/core@0.16.19(@colyseus/schema@3.0.42))(express@4.21.2)
       '@colyseus/tools':
         specifier: ^0.16.0
         version: 0.16.12(@colyseus/core@0.16.19(@colyseus/schema@3.0.42))(@colyseus/ws-transport@0.16.5(@colyseus/core@0.16.19(@colyseus/schema@3.0.42)))
@@ -27,6 +24,9 @@ importers:
       '@colyseus/loadtest':
         specifier: ^0.16.0
         version: 0.16.1
+      '@colyseus/playground':
+        specifier: ^0.16.0
+        version: 0.16.4(@colyseus/auth@0.16.6(@colyseus/core@0.16.19(@colyseus/schema@3.0.42))(express@4.21.2))(@colyseus/core@0.16.19(@colyseus/schema@3.0.42))(express@4.21.2)
       '@colyseus/testing':
         specifier: ^0.16.0
         version: 0.16.3(@colyseus/core@0.16.19(@colyseus/schema@3.0.42))(@colyseus/tools@0.16.12(@colyseus/core@0.16.19(@colyseus/schema@3.0.42))(@colyseus/ws-transport@0.16.5(@colyseus/core@0.16.19(@colyseus/schema@3.0.42))))(colyseus.js@0.16.19)
