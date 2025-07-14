@@ -24,20 +24,17 @@ export default config({
          * Bind your custom express routes here:
          * Read more: https://expressjs.com/en/starter/basic-routing.html
          */
-
-        console.log("NODE_ENV =", process.env.NODE_ENV);
-
+        app.get("/hello_world", (req, res) => {
+            res.send("It's time to kick ass and chew bubblegum!");
+        });
 
         /**
          * Use @colyseus/playground
          * (It is not recommended to expose this route in a production environment)
          */
-            if (process.env.NODE_ENV !== "production") {
-                console.log("✅ Mounting Playground");
-                app.use("/playground", playground());
-            }
-
-
+        if (process.env.NODE_ENV !== "production") {
+            app.use("/", playground());
+        }
 
         /**
          * Use @colyseus/monitor
@@ -45,10 +42,6 @@ export default config({
          * Read more: https://docs.colyseus.io/tools/monitor/#restrict-access-to-the-panel-using-a-password
          */
         app.use("/monitor", monitor());
-
-        app.get("/hello_world", (req, res) => {
-            res.send("It's time to kick ass and chew bubblegum!");
-        });
     },
 
 
