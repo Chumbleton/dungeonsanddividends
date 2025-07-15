@@ -6,6 +6,8 @@ import {
   BASE_RATE, WORKERS_PER_LEVEL, FAIR_WAGE, SPECIES_BONUS, MORALE_K,
   DEMAND_K, DEMAND_ELASTICITY, PRICE_ADJUST_RATE, MIN_PRICE, MAX_PRICE, COMMODITY, STEEL_RECIPE, BASE_PRICES
 } from "../constants/economy";
+import { prisma } from "../services/prismaClient";
+
 
 export class WorldRoom extends Room<WorldState> {
   private ticker?: Ticker;
@@ -60,13 +62,29 @@ export class WorldRoom extends Room<WorldState> {
     /* 2 ─ market demand & price move (unchanged) */
     this.clearMarketAndAdjustPrice();
 
+    // ─── persist prices (fire-and-forget) ───
+    for (const resourceId of Object.values(COMMODITY)) {
+      const price = this.state.marketPrices.get(resourceId)!;
+
+      prisma.tickPrice
+        .create({
+          data: {
+            tick:        this.state.globalTick,
+            commodityId: resourceId,
+            price,
+          },
+        })
+        .catch((err) => console.error("prisma.write", err));   // log, don’t crash
+    }
+
+
     /* 3 ─ auto-sell inventory at clearing price */
     for (const player of this.state.playerSnapshots.values()) {
       this.processAutoSell(player);
     }
 
     /* 4 ─ optional log */
-    if (this.state.globalTick % 25 === 0) {
+    if (this.state.globalTick % 25 === 0 && this.state.playerSnapshots.size > 0) {
       const p = this.state.playerSnapshots.values().next().value;
       console.log(
         `[Tick ${this.state.globalTick}] ` +

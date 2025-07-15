@@ -4,6 +4,7 @@ import { createServer } from "http";
 import { Client } from "colyseus.js";
 import { WorldRoom } from "../src/rooms/WorldRoom";
 import { WorldState } from "../src/rooms/schema/WorldState";
+import { COMMODITY } from "../src/constants/economy";
 
 jest.setTimeout(10_000);
 
@@ -34,7 +35,8 @@ describe("WorldRoom integration", () => {
     expect(st1.playerSnapshots.has(room1.sessionId)).toBe(true);  // ← FIX
 
     const mySnap = st1.playerSnapshots.get(room1.sessionId)!;
-    expect(mySnap.inventory.get("0")!).toBeGreaterThan(0);
+    expect(mySnap.cash).toBeLessThan(1000);                    // wages or sales affected cash
+    expect(st1.marketPrices.get(COMMODITY.IRON)!).not.toBe(10); // price drifted
     
     /* ---- second client ---- */
     const cli2  = new Client(url);
